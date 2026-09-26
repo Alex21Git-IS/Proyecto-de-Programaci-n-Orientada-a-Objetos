@@ -1,0 +1,211 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing.Imaging;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.IO; //Libreria para leer y cargar el archivo
+using System.Drawing; //Libreria para dibujar y dar color a las celdas
+using System.Windows.Forms;
+using System.Security.Cryptography.X509Certificates;
+using System.Diagnostics.Eventing.Reader;
+using System.Runtime.CompilerServices;
+
+namespace Proyeto
+{
+    internal class Laberinto : Form
+    {
+        //Decalaracion de variables
+        public char[,] Mapa { get; set; } //Declaracion de arreglo bidimensional
+        public int jugadorFila, jugadorColumna; //Posicion del jugador
+        public int movimientos = 0; //Numero de movimientos
+        public const int tamanioCelda = 40; //Tamanio del grafico de la celda
+        public string rutaArchivo; //Seleccionar el archivo
+
+        //Inicializacion del mapa/laberinto
+        int inicioFila = -1;
+        int inicioColumna = -1;
+
+        /*Metodo para cargar el archivo*/
+        public Laberinto(string rutaArchivo, Form1 form1)
+        {
+            this.rutaArchivo = rutaArchivo;
+            Mapa = new char[10,10];
+            CargarArchivo(rutaArchivo);
+        }
+
+        /*Metodo para validar el archivo*/
+        public void CargarArchivo (string rutaArchivo)
+        {
+            try
+            {
+                string[] lineas = File.ReadAllLines(rutaArchivo);
+
+                if (lineas.Length < 10)
+                {
+                    MessageBox.Show("El archivo no tiene suficientes lineas");
+                    return;
+                }
+
+                /*Aqui leera todas las lineas del archivo*/
+                for (int i = 0; i < 10; i++)
+                {
+                    string fila = lineas[i + 1].PadRight(10);
+                    for (int j = 0; j < 10; j++)
+                    {
+                        //Guarda las lineas del archivo cargado
+                        char letra = fila[j];
+                        Mapa[i, j] = letra;
+
+                        if (letra == 'i')
+                        {
+                            // Guarda la posición original ANTES de cambiarla a 'j'
+                            inicioFila = i;
+                            inicioColumna = j;
+
+                            jugadorFila = i;
+                            jugadorColumna = j;
+                            Mapa[i, j] = 'j'; // Ahora sí reemplaza por el jugador
+                        }
+                    }
+                }
+
+                movimientos = 0; //Reinicia el contador de movimientos
+            }
+            catch(Exception)
+            {
+                return;
+            }
+        }
+
+        /*Metodo para mover al jugador*/
+        public void MoverJugador(int desplazofila, int desplazoColumna)
+        {
+            int nuevaFila = jugadorFila;
+            int nuevaColumna = jugadorColumna;
+
+            // Avanzar hasta que encuentre un muro
+            while (true)
+            {
+                int siguienteFila = nuevaFila + desplazofila;
+                int siguienteColumna = nuevaColumna + desplazoColumna;
+
+                // Estilo ciclo 
+                if (siguienteFila < 0) siguienteFila = 9;
+                if (siguienteFila > 9) siguienteFila = 0;
+                if (siguienteColumna < 0) siguienteColumna = 9;
+                if (siguienteColumna > 9) siguienteColumna = 0;
+
+                char destino = Mapa[siguienteFila, siguienteColumna];
+
+                if (destino == 'x') break; // Si hay un muro, detente
+
+                nuevaFila = siguienteFila;
+                nuevaColumna = siguienteColumna;
+
+                // Si llega a la meta, termina
+                if (destino == 'f')
+                {
+                    Mapa[jugadorFila, jugadorColumna] = ' ';
+                    jugadorFila = nuevaFila;
+                    jugadorColumna = nuevaColumna;
+                    Mapa[jugadorFila, jugadorColumna] = 'j';
+                    movimientos++;
+                    MessageBox.Show("¡Llegaste al final en " + movimientos + " movimientos!");
+                    Invalidate();
+                    Application.Exit(); //Controla la ejecucion del sistema
+                }
+
+                // Si cae en reinicio, reinicia nivel
+                if (destino == 'r')
+                {
+                    movimientos++;
+                    MessageBox.Show("¡Reiniciando nivel!");
+                    ReiniciarNivel();
+                    return;
+                }
+            }
+
+            // Si se quedó en el mismo lugar, no cuentes movimiento
+            if (nuevaFila == jugadorFila && nuevaColumna == jugadorColumna)
+                return;
+
+            // Mover al jugador
+            Mapa[jugadorFila, jugadorColumna] = ' ';
+            jugadorFila = nuevaFila;
+            jugadorColumna = nuevaColumna;
+            Mapa[jugadorFila, jugadorColumna] = 'j';
+            movimientos++;
+
+            if (movimientos >= 6)
+            {
+                MessageBox.Show("¡Superaste el límite de movimientos! Volviendo al inicio.");
+                ReiniciarDesdeInicioOriginal(); // ✅ ¡Así sí vuelve a 'i'!
+                ReiniciarNivel();
+                return;
+            }
+            Invalidate();
+        }
+
+        /*Metodo de reincio de nivel o cuando se agotan los moviemientos*/
+        public void ReiniciarNivel()
+        {
+            movimientos = 0;
+
+            // Recarga el mapa desde el archivo
+            CargarArchivo(rutaArchivo);
+
+            // Asegúrate de volver a colocar al jugador en la posición inicial guardada
+            jugadorFila = inicioFila;
+            jugadorColumna = inicioColumna;
+            Mapa[jugadorFila, jugadorColumna] = 'j';
+            Invalidate();
+        }
+
+        /*Metodo para reiniciar el nivel y regresar al jugador a la posicion inicial*/
+        public void ReiniciarDesdeInicioOriginal()
+        {
+            // Limpia posición actual del jugador
+            Mapa[jugadorFila, jugadorColumna] = ' ';
+
+            // Asegúrate que la posición de inicio sigue válida
+            if (inicioFila >= 0 && inicioColumna >= 0)
+            {
+                jugadorFila = inicioFila;
+                jugadorColumna = inicioColumna;
+                Mapa[jugadorFila, jugadorColumna] = 'j';
+            }
+           
+            movimientos = 0;
+            Invalidate();
+        }
+
+        /*Metodo para dibujar la interfaz del laberinto*/
+        public void Dibujar(Graphics g)
+        {
+            for (int i = 0; i < 10; i++)
+            {
+                for (int j = 0; j < 10; j++)
+                {
+                    /*Llamamos a la clase Brush y despues la clase Brushes*/
+                    Brush brocha = Brushes.White; //Para espacios en blanco
+                    switch (Mapa[i, j])
+                    {
+                        case 'x': brocha = Brushes.DarkViolet; break; //Color para muros
+                        case 'j': brocha = Brushes.Blue; break; //Color para el jugador
+                        case 'i': brocha = Brushes.Gray; break; //Color para el inicio
+                        case 'r': brocha = Brushes.Yellow; break; //Color para el reinicio
+                        case 'f': brocha = Brushes.Red; break; //Color para el final
+                    }
+                    /*Dibuja cada celda en la interfaz grafica*/
+                    g.FillRectangle(brocha, j * tamanioCelda, i * tamanioCelda, tamanioCelda, tamanioCelda);
+                    g.DrawRectangle(Pens.Black, j * tamanioCelda, i * tamanioCelda, tamanioCelda, tamanioCelda);
+
+                    //FillRectangle() rellena un rectangulo con un color
+                    //DrawRectangle() Dibuja solo el borde
+                    //Pens.color Define el color de la pluma y se usa dentro de DrawRectangle
+                }
+            }
+        }
+    }
+}
